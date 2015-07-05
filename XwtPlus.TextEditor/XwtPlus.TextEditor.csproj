@@ -38,12 +38,11 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="ICSharpCode.NRefactory, Version=5.0.0.0, Culture=neutral, PublicKeyToken=d4bfe873e7598c49">
-      <Package>monodevelop</Package>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="Xwt">
       <HintPath>..\Third-Party\Gtk\Xwt.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.NRefactory">
+      <HintPath>..\Third-Party\ICSharpCode.NRefactory.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
