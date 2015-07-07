@@ -38,11 +38,11 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="Xwt">
-      <HintPath>..\Third-Party\Gtk\Xwt.dll</HintPath>
-    </Reference>
     <Reference Include="ICSharpCode.NRefactory">
       <HintPath>..\Third-Party\ICSharpCode.NRefactory.dll</HintPath>
+    </Reference>
+    <Reference Include="Xwt">
+      <HintPath>..\..\Xwt\Gtk\Xwt.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
