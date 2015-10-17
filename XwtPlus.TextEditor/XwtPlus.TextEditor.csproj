@@ -150,7 +150,7 @@
   </Target>
   -->
   <ItemGroup>
-    <ProjectReference Include="..\..\URMSimulator\Xwt\Xwt\Xwt.csproj">
+    <ProjectReference Include="..\..\xwt\Xwt\Xwt.csproj">
       <Project>{92494904-35FA-4DC9-BDE9-3A3E87AC49D3}</Project>
       <Name>Xwt</Name>
     </ProjectReference>
