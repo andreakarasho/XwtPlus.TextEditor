@@ -112,6 +112,11 @@ namespace XwtPlus.TextEditor
             get { return margins.Select(margin => margin.ComputedWidth).Sum(); }
         }
 
+        protected override Size OnGetPreferredSize(SizeConstraint widthConstraint, SizeConstraint heightConstraint)
+        {
+            return new Size(ComputedWidth, textViewMargin.LineHeight * editor.Document.LineCount);
+        }
+
         public double GetWidth()
         {
             return ComputedWidth;
