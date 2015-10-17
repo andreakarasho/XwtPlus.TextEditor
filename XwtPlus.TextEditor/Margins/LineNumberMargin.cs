@@ -53,10 +53,15 @@ namespace XwtPlus.TextEditor.Margins
 
             if (breakpoints.Contains(lineNumber))
             {
-                cr.SetColor(Colors.DarkRed);
-                cr.Rectangle(x, y, Width, height + 1);
+                if (lineNumber > cachedLineCount)
+                    breakpoints.Remove(lineNumber);
+                else
+                {
+                    cr.SetColor(Colors.DarkRed);
+                    cr.Rectangle(x, y, Width, height + 1);
 
-                cr.Fill();
+                    cr.Fill();
+                }
             }
             cr.Restore();
         }

@@ -11,6 +11,17 @@ namespace XwtPlus.TextEditor
 {
     public class TextEditor : ScrollView
     {
+        public event EventHandler<EventArgs> OnUndoRedoStackChanged;
+
+        protected virtual void OnUndoRedoStackChange(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = OnUndoRedoStackChanged;
+            if (handler != null)
+            {
+                handler(this, e);
+            }
+        }
+
         TextArea textArea;
 
         public Caret Caret { get; private set; }
@@ -89,6 +100,8 @@ namespace XwtPlus.TextEditor
 			return IndentationTracker.GetVirtualIndentationColumn (offset);
 		}
 
+
+
         public TextEditor()
             : this(new TextDocument(""))
         {
@@ -122,12 +135,19 @@ namespace XwtPlus.TextEditor
             
             KeyPressed += textArea.HandleKeyPressed;
             TextInput += textArea.HandleTextInput;
+
+            textArea.OnUndoRedoStackChanged += (sender, e) => OnUndoRedoStackChange(new EventArgs());
         }
 
         public void HighlightDebuggingLine(int line)
         {
             textArea.HighlightDebuggingLine(line);
             this.QueueDraw();
+        }
+
+        public void ClearUndoRedoStack()
+        {
+            textArea.ClearUndoRedoStack();
         }
 
         public List<int> GetBreakpoints()

@@ -96,6 +96,7 @@
     <Compile Include="TextEditorOptions.cs" />
     <Compile Include="Document\TextSegment.cs" />
     <Compile Include="Margins\TextViewMargin.cs" />
+    <Compile Include="URCommand.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="SyntaxModes\ActionScriptSyntaxMode.xml" />

@@ -9,56 +9,19 @@ using XwtPlus.TextEditor.Margins;
 
 namespace XwtPlus.TextEditor
 {
-    class URCommand
-    {
-        private int _pos;
-        private string _s, _s2;
-        private bool _delete;
-
-        public DocumentLocation OldLocation { get; set; }
-        public DocumentLocation  NewLocation { get; set; }
-
-        public URCommand(int pos, string s, bool delete, DocumentLocation oldLocation, DocumentLocation newLocation)
-        {
-            this._pos = pos;
-            this._s = s;
-            this._delete = delete;
-
-            this.OldLocation = oldLocation;
-            this.NewLocation = newLocation;
-        }
-
-        public URCommand(int pos, string s, string s2, DocumentLocation oldLocation, DocumentLocation newLocation)
-        {
-            this._pos = pos;
-            this._s = s;
-            this._s2 = s2;
-
-            this.OldLocation = oldLocation;
-            this.NewLocation = newLocation;
-        }
-
-        private string Do(string s, bool delete)
-        {
-            if (string.IsNullOrEmpty(_s2))
-                return delete ? s.Remove(_pos, _s.Length) : s.Insert(_pos, _s);
-            else
-                return delete ? s.Remove(_pos, _s2.Length).Insert(_pos, _s) : s.Remove(_pos, _s.Length).Insert(_pos, _s2);
-        }
-
-        public string Undo(string s)
-        {
-            return Do(s, !_delete);
-        }
-
-        public string Redo(string s)
-        {
-            return Do(s, _delete);
-        }
-    }
-
     class TextArea : Canvas
     {
+        internal event EventHandler<EventArgs> OnUndoRedoStackChanged;
+
+        protected virtual void OnUndoRedoStackChange(EventArgs e)
+        {
+            EventHandler<EventArgs> handler = OnUndoRedoStackChanged;
+            if (handler != null)
+            {
+                handler(this, e);
+            }
+        }
+
         const int StartOffset = 4;
 
         Menu contextMenu;
@@ -69,6 +32,9 @@ namespace XwtPlus.TextEditor
         LineNumberMargin lineNumberMargin;
         PaddingMargin paddingMargin;
         TextViewMargin textViewMargin;
+
+        List<URCommand> urcommands = new List<URCommand>();
+        int urpos = -1;
 
         public TextArea(TextEditor editor)
         {
@@ -104,7 +70,7 @@ namespace XwtPlus.TextEditor
             selectallMenuItem.Clicked += (sender, e) => SelectAll();
             contextMenu.Items.Add(selectallMenuItem);
 
-            ButtonPressed += HandleButtonPressed;
+            ButtonReleased += HandleButtonReleased;
         }
 
         public double ComputedWidth
@@ -244,6 +210,13 @@ namespace XwtPlus.TextEditor
             editor.SetFocus();
         }
 
+        internal void ClearUndoRedoStack()
+        {
+            urcommands = new List<URCommand>();
+            urpos = -1;
+            OnUndoRedoStackChange(new EventArgs());
+        }
+
         internal List<int> GetBreakpoints()
         {
             return lineNumberMargin.breakpoints;
@@ -254,9 +227,6 @@ namespace XwtPlus.TextEditor
             textViewMargin.HighlightDebuggingLine = line;
         }
 
-        List<URCommand> urcommands = new List<URCommand>();
-        int urpos = -1;
-
         private void AddURCommand(URCommand urcommand)
         {
             while (urpos < urcommands.Count - 1)
@@ -264,6 +234,8 @@ namespace XwtPlus.TextEditor
 
             urcommands.Add(urcommand);
             urpos++;
+
+            OnUndoRedoStackChange(new EventArgs());
         }
 
         public bool CanUndo()
@@ -281,12 +253,12 @@ namespace XwtPlus.TextEditor
             if (!CanUndo())
                 return;
 
-            this.editor.Document.Text = urcommands[urpos].Undo(this.editor.Document.Text);
-            editor.Caret.Location = urcommands[urpos].OldLocation;
             urpos--;
+            this.editor.Document.Text = urcommands[urpos + 1].Undo(this.editor.Document.Text);
+            editor.Caret.Location = urcommands[urpos + 1].OldLocation;
 
             editor.ResetCaretState();
-
+            OnUndoRedoStackChange(new EventArgs());
         }
 
         public void Redo()
@@ -294,11 +266,12 @@ namespace XwtPlus.TextEditor
             if (!CanRedo())
                 return;
 
-            this.editor.Document.Text = urcommands[urpos + 1].Redo(this.editor.Document.Text);
-            editor.Caret.Location = urcommands[urpos + 1].NewLocation;
             urpos++;
+            this.editor.Document.Text = urcommands[urpos].Redo(this.editor.Document.Text);
+            editor.Caret.Location = urcommands[urpos].NewLocation;
 
             editor.ResetCaretState();
+            OnUndoRedoStackChange(new EventArgs());
         }
 
         internal bool CanCopy()
@@ -440,7 +413,7 @@ namespace XwtPlus.TextEditor
             QueueDraw();
         }
 
-        internal void HandleButtonPressed(object sender, ButtonEventArgs e)
+        internal void HandleButtonReleased(object sender, ButtonEventArgs e)
         {
             if (e.Button == PointerButton.Right)
             {
