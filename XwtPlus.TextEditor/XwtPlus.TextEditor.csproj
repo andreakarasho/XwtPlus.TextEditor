@@ -42,9 +42,6 @@
       <Package>monodevelop</Package>
       <Private>True</Private>
     </Reference>
-    <Reference Include="Xwt">
-      <HintPath>..\Third-Party\Gtk\Xwt.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Buffers\IBuffer.cs" />
@@ -132,6 +129,7 @@
     <EmbeddedResource Include="SyntaxModes\ValaSyntaxMode.xml" />
     <EmbeddedResource Include="SyntaxModes\VBNetSyntaxMode.xml" />
     <EmbeddedResource Include="SyntaxModes\XmlSyntaxMode.xml" />
+    <EmbeddedResource Include="SyntaxModes\URMSyntaxMode.xml" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Styles\DefaultStyle.json" />
@@ -151,4 +149,10 @@
   <Target Name="AfterBuild">
   </Target>
   -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\URMSimulator\Xwt\Xwt\Xwt.csproj">
+      <Project>{92494904-35FA-4DC9-BDE9-3A3E87AC49D3}</Project>
+      <Name>Xwt</Name>
+    </ProjectReference>
+  </ItemGroup>
 </Project>

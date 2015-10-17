@@ -124,6 +124,67 @@ namespace XwtPlus.TextEditor
             TextInput += textArea.HandleTextInput;
         }
 
+        public void HighlightDebuggingLine(int line)
+        {
+            textArea.HighlightDebuggingLine(line);
+            this.QueueDraw();
+        }
+
+        public List<int> GetBreakpoints()
+        {
+            return textArea.GetBreakpoints();
+        }
+
+        public bool CanUndo()
+        {
+            return textArea.CanUndo();
+        }
+
+        public bool CanRedo()
+        {
+            return textArea.CanRedo();
+        }
+
+        public void Undo()
+        {
+            textArea.Undo();
+        }
+
+        public void Redo()
+        {
+            textArea.Redo();
+        }
+
+        public bool CanCopy()
+        {
+            return textArea.CanCopy();
+        }
+
+        public bool CanPaste()
+        {
+            return textArea.CanPaste();
+        }
+
+        public void Cut()
+        {
+            textArea.Cut();
+        }
+
+        public void Copy()
+        {
+            textArea.Copy();
+        }
+
+        public void Paste()
+        {
+            textArea.Paste();
+        }
+
+        public void SelectAll()
+        {
+            textArea.SelectAll();
+        }
+
         internal int GetWidth()
         {
             if(Toolkit.CurrentEngine.Type == ToolkitType.Wpf)
@@ -154,8 +215,12 @@ namespace XwtPlus.TextEditor
             //Consider replacing by QueueForReallocate
 
             base.OnReallocate();
+
             Content = new Button();
             Content = textArea;
+
+            textArea.WidthRequest = textArea.GetWidth();
+            textArea.HeightRequest = textArea.GetHeight();
         }
 
         public void RedrawLine(int line)

@@ -16,7 +16,10 @@ namespace XwtPlus.TextEditor.Margins
         TextEditor editor;
 
         int? cachedLineCount;
+        double lineHeight;
         double cachedWidth;
+
+        internal List<int> breakpoints = new List<int>();
 
         public LineNumberMargin(TextEditor editor)
         {
@@ -47,6 +50,14 @@ namespace XwtPlus.TextEditor.Margins
             cr.SetColor(Colors.LightGray);
             cr.Rectangle(x, y, Width, height + 1);
             cr.Fill();
+
+            if (breakpoints.Contains(lineNumber))
+            {
+                cr.SetColor(Colors.DarkRed);
+                cr.Rectangle(x, y, Width, height + 1);
+
+                cr.Fill();
+            }
             cr.Restore();
         }
 
@@ -68,8 +79,30 @@ namespace XwtPlus.TextEditor.Margins
             layoutDict.Clear();
         }
 
+        protected internal override void MousePressed(MarginMouseEventArgs args)
+        {
+            base.MousePressed(args);
+
+            if (args.Button == Xwt.PointerButton.Left)
+            {
+                int bp = (int) (args.Y / lineHeight) + 1;
+
+                if (bp > cachedLineCount)
+                    return;
+
+                if (breakpoints.Contains(bp))
+                    breakpoints.Remove(bp);
+                else
+                    breakpoints.Add(bp);
+
+                editor.QueueDraw();
+            }
+        }
+
         protected internal override void Draw(Context cr, Xwt.Rectangle area, DocumentLine line, int lineNumber, double x, double y, double height)
         {
+            lineHeight = height;
+
             if (lineNumber <= editor.Document.LineCount)
             {
                 TextLayout layout;
@@ -82,7 +115,10 @@ namespace XwtPlus.TextEditor.Margins
                     layoutDict[lineNumber] = layout;
                 }
 
-                cr.SetColor(Colors.Black);
+                if (breakpoints.Contains(lineNumber))
+                    cr.SetColor(Colors.White);
+                else
+                    cr.SetColor(Colors.Black);
                 cr.DrawTextLayout(layout, x + leftPadding, y);
             }
         }

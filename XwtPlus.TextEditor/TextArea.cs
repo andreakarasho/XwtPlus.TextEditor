@@ -9,6 +9,54 @@ using XwtPlus.TextEditor.Margins;
 
 namespace XwtPlus.TextEditor
 {
+    class URCommand
+    {
+        private int _pos;
+        private string _s, _s2;
+        private bool _delete;
+
+        public DocumentLocation OldLocation { get; set; }
+        public DocumentLocation  NewLocation { get; set; }
+
+        public URCommand(int pos, string s, bool delete, DocumentLocation oldLocation, DocumentLocation newLocation)
+        {
+            this._pos = pos;
+            this._s = s;
+            this._delete = delete;
+
+            this.OldLocation = oldLocation;
+            this.NewLocation = newLocation;
+        }
+
+        public URCommand(int pos, string s, string s2, DocumentLocation oldLocation, DocumentLocation newLocation)
+        {
+            this._pos = pos;
+            this._s = s;
+            this._s2 = s2;
+
+            this.OldLocation = oldLocation;
+            this.NewLocation = newLocation;
+        }
+
+        private string Do(string s, bool delete)
+        {
+            if (string.IsNullOrEmpty(_s2))
+                return delete ? s.Remove(_pos, _s.Length) : s.Insert(_pos, _s);
+            else
+                return delete ? s.Remove(_pos, _s2.Length).Insert(_pos, _s) : s.Remove(_pos, _s.Length).Insert(_pos, _s2);
+        }
+
+        public string Undo(string s)
+        {
+            return Do(s, !_delete);
+        }
+
+        public string Redo(string s)
+        {
+            return Do(s, _delete);
+        }
+    }
+
     class TextArea : Canvas
     {
         const int StartOffset = 4;
@@ -64,16 +112,14 @@ namespace XwtPlus.TextEditor
             get { return margins.Select(margin => margin.ComputedWidth).Sum(); }
         }
 
-        protected override Size OnGetPreferredSize(SizeConstraint widthConstraint, SizeConstraint heightConstraint)
+        public double GetWidth()
         {
-            //GTK 3 has some trouble setting correct sizes... this fixes it
-            if (Toolkit.CurrentEngine.Type == ToolkitType.Gtk3)
-            {
-                this.WidthRequest = ComputedWidth;
-                this.HeightRequest = textViewMargin.LineHeight * (editor.Document.LineCount + 1);
-            }
+            return ComputedWidth;
+        }
 
-            return new Size(ComputedWidth, textViewMargin.LineHeight * editor.Document.LineCount);
+        public double GetHeight()
+        {
+            return textViewMargin.LineHeight * (editor.Document.LineCount + 1);
         }
 
         protected override void OnDraw(Context ctx, Rectangle dirtyRect)
@@ -193,26 +239,112 @@ namespace XwtPlus.TextEditor
             editor.SetFocus();
         }
 
-        private void Cut()
+        internal List<int> GetBreakpoints()
         {
-            if (editor.Selection.IsEmpty)
+            return lineNumberMargin.breakpoints;
+        }
+
+        internal void HighlightDebuggingLine(int line)
+        {
+            textViewMargin.HighlightDebuggingLine = line;
+        }
+
+        List<URCommand> urcommands = new List<URCommand>();
+        int urpos = -1;
+
+        private void AddURCommand(URCommand urcommand)
+        {
+            while (urpos < urcommands.Count - 1)
+                urcommands.RemoveAt(urcommands.Count - 1);
+
+            urcommands.Add(urcommand);
+            urpos++;
+        }
+
+        public bool CanUndo()
+        {
+            return urpos != -1;
+        }
+
+        public bool CanRedo()
+        {
+            return urpos < urcommands.Count - 1;
+        }
+
+        public void Undo()
+        {
+            if (!CanUndo())
+                return;
+
+            this.editor.Document.Text = urcommands[urpos].Undo(this.editor.Document.Text);
+            editor.Caret.Location = urcommands[urpos].OldLocation;
+            urpos--;
+
+            editor.ResetCaretState();
+
+        }
+
+        public void Redo()
+        {
+            if (!CanRedo())
+                return;
+
+            this.editor.Document.Text = urcommands[urpos + 1].Redo(this.editor.Document.Text);
+            editor.Caret.Location = urcommands[urpos + 1].NewLocation;
+            urpos++;
+
+            editor.ResetCaretState();
+        }
+
+        internal bool CanCopy()
+        {
+            return !editor.Selection.IsEmpty;
+        }
+
+        internal bool CanPaste()
+        {
+            return !string.IsNullOrEmpty(Clipboard.GetText());
+        }
+
+        internal void Cut()
+        {
+            if (!CanCopy())
                 return;
             
             Copy();
+
+            var oldtext = editor.Document.Text.Substring(editor.Selection.Offset, editor.Selection.Length);
+            var pos = editor.Selection.Offset;
+            var oldloc = editor.Caret.Location;
+
             editor.Document.Remove(editor.Selection);
             Deselect();
+
+            AddURCommand(new URCommand(pos, oldtext, true, oldloc, editor.Caret.Location));
         }
 
-        private void Copy()
+        internal void Copy()
         {
-            if (!editor.Selection.IsEmpty)
+            if (CanCopy())
                 Clipboard.SetText(editor.Document.GetTextAt(editor.Selection.GetRegion(editor.Document)));
         }
 
-        private void Paste()
+        internal void Paste()
         {
-            if(!string.IsNullOrEmpty(Clipboard.GetText()))
-                InsertText(Clipboard.GetText());
+            if (CanPaste())
+            {
+                string text = Clipboard.GetText();
+
+                string[] split = text.Split(new [] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                InsertText(text);
+
+                if (split.Length > 1)
+                {
+                    editor.Caret.Line += split.Length - 1;
+                    editor.Caret.Column = split[split.Length - 1].Length + 1;
+                }
+                editor.ResetCaretState();
+            }
         }
 
         private void MoveCursorUp()
@@ -279,15 +411,26 @@ namespace XwtPlus.TextEditor
                 if (back && editor.Caret.Line == 1 && editor.Caret.Column == 1)
                     return;
 
-                editor.Document.Remove(editor.Document.GetOffset(editor.Caret.Location) - Convert.ToInt32(back), 1);
+                var offset = editor.Document.GetOffset(editor.Caret.Location) - Convert.ToInt32(back);
+                var oldloc = editor.Caret.Location;
+                var oldtext = editor.Document.Text.Substring(offset, 1);
 
+                editor.Document.Remove(offset, 1);
                 if (back)
                     MoveCursorLeft();
+                
+                AddURCommand(new URCommand(offset, oldtext, true, oldloc, editor.Caret.Location));
             }
             else
             {
+                var offset = editor.Document.GetOffset(editor.Caret.Location);
+                var oldloc = editor.Caret.Location;
+                var oldtext = editor.Document.Text.Substring(editor.Selection.Offset, editor.Selection.Length);
+
                 editor.Document.Remove(editor.Selection);
                 Deselect();
+
+                AddURCommand(new URCommand(offset, oldtext, true, oldloc, editor.Caret.Location));
             }
             QueueDraw();
         }
@@ -310,24 +453,45 @@ namespace XwtPlus.TextEditor
 
             if (e.Modifiers.HasFlag(ModifierKeys.Control))
             {
-                switch (e.Key)
+                if (e.Modifiers.HasFlag(ModifierKeys.Shift))
                 {
-                    case Key.a:
-                    case Key.A:
-                        SelectAll();
-                        break;
-                    case Key.x:
-                    case Key.X:
-                        Cut();
-                        break;
-                    case Key.c:
-                    case Key.C:
-                        Copy();
-                        break;
-                    case Key.v:
-                    case Key.V:
-                        Paste();
-                        break;
+                    switch (e.Key)
+                    {
+                        case Key.Z:
+                        case Key.z:
+                            Redo();
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (e.Key)
+                    {
+                        case Key.a:
+                        case Key.A:
+                            SelectAll();
+                            break;
+                        case Key.x:
+                        case Key.X:
+                            Cut();
+                            break;
+                        case Key.c:
+                        case Key.C:
+                            Copy();
+                            break;
+                        case Key.v:
+                        case Key.V:
+                            Paste();
+                            break;
+                        case Key.Z:
+                        case Key.z:
+                            Undo();
+                            break;
+                        case Key.Y:
+                        case Key.y:
+                            Redo();
+                            break;
+                    }
                 }
             }
 
@@ -369,7 +533,7 @@ namespace XwtPlus.TextEditor
             }
         }
 
-        void SelectAll()
+        internal void SelectAll()
         {
             editor.Selection = new TextSegment(0, editor.Document.TextLength);
         }
@@ -392,58 +556,40 @@ namespace XwtPlus.TextEditor
 
         void InsertText(string text)
         {
-            if (text == "\b")
-            {
-                if (editor.Selection.IsEmpty)
-                {
-                    if (editor.Caret.Column == 1)
-                    {
-                        int newLine = --editor.Caret.Line;
-                        editor.Caret.Location = new DocumentLocation(newLine, editor.Document.GetLine(newLine).Length + 1);
+            var oldloc = editor.Caret.Location;
+            string oldtext = null;
 
-                        editor.Document.Remove(editor.Document.GetOffset(editor.Caret.Location), 1);
-                    }
-                    else
-                    {
-                        editor.Caret.Column--;
-                        var tl = new DocumentLocation(editor.Caret.Line, editor.Caret.Column);
-                        var offset = editor.Document.GetOffset(tl);
-                        editor.Document.Remove(offset, 1);
-                    }
-                }
-                else
+            if (!editor.Selection.IsEmpty)
+            {
+                oldtext = editor.Document.Text.Substring(editor.Selection.Offset, editor.Selection.Length);
+
+                editor.Document.Remove(editor.Selection);
+                editor.Caret.Offset = editor.Selection.Offset;
+                Deselect();
+            }
+
+            int offset = editor.Document.GetOffset(editor.Caret.Location);
+
+            if (text == "\r" || text == "\n")
+            {
+                string tabText = "";
+                if (editor.Options.IndentStyle == IndentStyle.Auto)
                 {
-                    editor.Document.Remove(editor.Selection);
-                    Deselect();
+                    tabText = editor.Document.GetLine(editor.Caret.Line).GetIndentation(editor.Document);
                 }
+                editor.Document.Insert(offset, text + tabText);
+                editor.Caret.Location = new DocumentLocation(editor.Caret.Line + 1, tabText.Length + 1);
             }
             else
             {
-                if (!editor.Selection.IsEmpty)
-                {
-                    editor.Document.Remove(editor.Selection);
-                    editor.Caret.Offset = editor.Selection.Offset;
-                    Deselect();
-                }
-
-                if (text == "\r" || text == "\n")
-                {
-                    int offset = editor.Document.GetOffset(editor.Caret.Location);
-                    string tabText = "";
-                    if (editor.Options.IndentStyle == IndentStyle.Auto)
-                    {
-                        tabText = editor.Document.GetLine(editor.Caret.Line).GetIndentation(editor.Document);
-                    }
-                    editor.Document.Insert(offset, text + tabText);
-                    editor.Caret.Location = new DocumentLocation(editor.Caret.Line + 1, tabText.Length + 1);
-                }
-                else
-                {
-                    int offset = editor.Document.GetOffset(editor.Caret.Location);
-                    editor.Document.Insert(offset, text);
-                    editor.Caret.Column += text.Length;
-                }
+                editor.Document.Insert(offset, text);
+                editor.Caret.Column += text.Length;
             }
+
+            if (string.IsNullOrEmpty(oldtext))
+                AddURCommand(new URCommand(offset, text, false, oldloc, editor.Caret.Location));
+            else
+                AddURCommand(new URCommand(offset, oldtext, text, oldloc, editor.Caret.Location));
 
             QueueDraw();
         }

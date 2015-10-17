@@ -13,6 +13,8 @@ namespace XwtPlus.TextEditor.Margins
     {
         const int caretWidth = 2;
 
+        public int HighlightDebuggingLine = -1;
+
         TextEditor editor;
         public TextViewMargin(TextEditor editor)
         {
@@ -138,7 +140,13 @@ namespace XwtPlus.TextEditor.Margins
         {
             if (line == null) return;
 
-            if (lineNumber == editor.Caret.Line)
+            if (lineNumber == HighlightDebuggingLine)
+            {
+                cr.SetColor(Color.FromBytes(255, 204, 204));
+                cr.Rectangle(x, y, editor.GetWidth(), height);
+                cr.Fill();
+            }
+            else if (lineNumber == editor.Caret.Line)
             {
                 cr.SetColor(editor.Options.ColorScheme.LineMarker.Color);
                 cr.Rectangle(x, y, editor.GetWidth(), height);
